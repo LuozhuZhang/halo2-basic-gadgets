@@ -177,6 +177,18 @@ impl<F: FieldExt> FiboChip<F> {
                 }
             )
     } 
+
+    // * 这里貌似可以拿到一些assigned cell，然后做后续的constraint
+    pub fn expose_public(
+        &self,
+        mut layouter: impl Layouter<F>,
+        cell: &ACell<F>,
+        row: usize,
+    ) -> Result<(), Error> {
+        // * 拿到一个assigned cell，如何把数据给instance column貌似
+        // * 可以check一下这个`expose_public`函数的作用
+        layouter.constrain_instance(cell.0.cell(), self.config.instance, row)
+    }
 }
 
 #[derive(Default)]
