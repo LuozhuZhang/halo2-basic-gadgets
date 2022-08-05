@@ -29,7 +29,7 @@ struct FiboChip<F: FieldExt> {
 impl<F: FieldExt> FiboChip<F> {
     // 这是一个function（关联函数），返回实例自身
     // 传入FiboConfig struct，返回FiboChip
-    fn construct(config: FiboConfig) -> Self {
+    pub fn construct(config: FiboConfig) -> Self {
         Self { config, _marker: PhantomData }
     }
 
@@ -41,7 +41,7 @@ impl<F: FieldExt> FiboChip<F> {
     
     // * 注意：我们这里采用了第二种写法，把columns放到 MyCircuit 的 configure 函数里面定义
     // * 这样做的好处就是可以复用columns，传到不同的Chip里
-    fn configure(
+    pub fn configure(
         meta: &mut ConstraintSystem<F>,
         advice: [Column<Advice>; 3],
         instance: Column<Instance>,
@@ -68,8 +68,8 @@ impl<F: FieldExt> FiboChip<F> {
             // 这里query出selector column
             let s: Expression<F> = meta.query_selector(selector);
             let a: Expression<F>  = meta.query_advice(col_a, Rotation::cur());
-            let a: Expression<F> = meta.query_advice(col_b, Rotation::cur());
-            let a: Expression<F>  = meta.query_advice(col_c, Rotation::cur());
+            let b: Expression<F> = meta.query_advice(col_b, Rotation::cur());
+            let c: Expression<F>  = meta.query_advice(col_c, Rotation::cur());
 
             // return constraint
             // 让这个constraint = 0，所以可以enable selector
@@ -88,17 +88,21 @@ impl<F: FieldExt> FiboChip<F> {
 
     // 这里定义的是在Fibochip impl context下的method
     // 输入两个table中的private input，就是a和b
-    fn assign_first_row(&self, mut layouter: impl layouter<F>, a: Option<F>, b: Option<F>) 
-    -> Result<(ACell<F>, ACell<F>, ACell<F>), Error>{
+    pub fn assign_first_row(
+        &self,
+        mut layouter: impl Layouter<F>,
+        a: Option<F>,
+        b: Option<F>
+    ) -> Result<(ACell<F>, ACell<F>, ACell<F>), Error>{
         // layouter应该就是主要用来fed数据
         // * Layouter lays out regions in the table
         // * region可以理解为分配约束在table中使用的空间：https://docs.google.com/presentation/d/1HUJPHXaqbmVsnmI331mJn9nRuZkeHQZkIMpWBOJ1itk/edit#slide=id.p7
         layouter.assign_region(
-            name: || "first row",
-            assignment: |mut region| {
+            || "first row",
+            |mut region| {
                 // 打开第一行的selector
                 // offset算是一种relative的位置
-                self.config.selector.enable(&mut region, offset: 0);
+                self.config.selector.enable(&mut region, offset: 0)?;
 
                 // assign第一个a cell（就是a0）
                 // assign_advice最终返回assignedCell或者Error
