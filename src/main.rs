@@ -44,7 +44,7 @@ impl<F: FieldExt> FiboChip<F> {
     fn configure(
         meta: &mut ConstraintSystem<F>,
         advice: [Column<Advice>; 3],
-        selector: Selector,
+        instance: Column<Instance>,
     ) -> FiboConfig {
         // ConstraintSystem主要做电路约束，里面有许多重要的API：https://docs.rs/halo2_proofs/latest/halo2_proofs/plonk/struct.ConstraintSystem.html
         // 比如 create_gate 和 advice_column 等，用meta作为parameter-argument来调用
@@ -56,8 +56,9 @@ impl<F: FieldExt> FiboChip<F> {
         meta.enable_equality(col_a);
         meta.enable_equality(col_b);
         meta.enable_equality(col_c);
+        meta.enable_equality(instance);
 
-        meta.create_gate(name: "add", construct: |meta: &mut VirtualCells<F>| {
+        meta.create_gate("add", |meta: &mut VirtualCells<F>| {
             //
             // col_a | col_b | col_c | selector
             //   a      b        c       s
@@ -79,6 +80,7 @@ impl<F: FieldExt> FiboChip<F> {
         FiboConfig { 
             advice: [col_a, col_b, col_c],
             selector,
+            instance,
         }
 
     // fn assign()
@@ -227,9 +229,9 @@ impl<F: FieldExt> Circuit<F> for MyCircuit<F> {
 fn main() {
     let k = 4;
     // Fp上的元素
-    let a = Fp::from(1);
-    let b = Fp::from(1);
-    let out = Fp::from(55);
+    let a = Fp::from(1);    // F[0]
+    let b = Fp::from(1);    // F[1]
+    let out = Fp::from(55); // F[9]
 
     // 实例化一个circuit
     let circuit = MyCircuit {
