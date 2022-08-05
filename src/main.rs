@@ -58,7 +58,7 @@ impl<F: FieldExt> FiboChip<F> {
         meta.enable_equality(col_c);
         meta.enable_equality(instance);
 
-        meta.create_gate("add", |meta: &mut VirtualCells<F>| {
+        meta.create_gate("add", |meta| {
             //
             // col_a | col_b | col_c | selector
             //   a      b        c       s
@@ -66,14 +66,14 @@ impl<F: FieldExt> FiboChip<F> {
 
             // 这里的query也可以叫select，根据一个column得到里面的cell
             // 这里query出selector column
-            let s: Expression<F> = meta.query_selector(selector);
-            let a: Expression<F>  = meta.query_advice(col_a, Rotation::cur());
-            let b: Expression<F> = meta.query_advice(col_b, Rotation::cur());
-            let c: Expression<F>  = meta.query_advice(col_c, Rotation::cur());
+            let s = meta.query_selector(selector);
+            let a = meta.query_advice(col_a, Rotation::cur());
+            let b = meta.query_advice(col_b, Rotation::cur());
+            let c = meta.query_advice(col_c, Rotation::cur());
 
             // return constraint
             // 让这个constraint = 0，所以可以enable selector
-            vec![s * (a + b - c)];
+            vec![s * (a + b - c)]
         });
 
         // 写好circuit gate之后，就可以return了
@@ -82,7 +82,6 @@ impl<F: FieldExt> FiboChip<F> {
             selector,
             instance,
         }
-
     // fn assign()
     }
 
@@ -102,37 +101,37 @@ impl<F: FieldExt> FiboChip<F> {
             |mut region| {
                 // 打开第一行的selector
                 // offset算是一种relative的位置
-                self.config.selector.enable(&mut region, offset: 0)?;
+                self.config.selector.enable(&mut region, 0)?;
 
                 // assign第一个a cell（就是a0）
                 // assign_advice最终返回assignedCell或者Error
                 let a_cell = region.assign_advice(
                     // 命名
-                    annotation: || "a",
+                    || "a",
                     // 第几个advice column
-                    column: self.config.advice[0],
+                    self.config.advice[0],
                     // 没有relative location
-                    offset: 0,
+                    0,
                     // 错误处理
-                    to: || a.ok_or(Error::Synthesis),
-                ).map(op: ACell)?;
+                    || a.ok_or(Error::Synthesis),
+                ).map(ACell)?;
 
                 let b_cell = region.assign_advice(
-                    annotation: || "b",
-                    column: self.config.advice[1],
-                    offset: 0,
-                    to: || a.ok_or(Error::Synthesis),
-                ).map(op: ACell)?;
+                    || "b",
+                    self.config.advice[1],
+                    0,
+                    || b.ok_or(Error::Synthesis),
+                ).map(ACell)?;
 
                 // a + b = c
                 let c_val: Option<F> = a.and_then(|a| b.map(|b| a + b));
 
                 let c_cell = region.assign_advice(
-                    annotation: || "c",
-                    column: self.config.advice[2],
-                    offset: 0,
-                    to: || a.ok_or(Error::Synthesis),
-                ).map(op: ACell)?;
+                    || "c",
+                    self.config.advice[2],
+                    0,
+                    || c_val.ok_or(Error::Synthesis),
+                ).map(ACell)?;
 
                 // 返回一个带值的tuple，就是最终assigned的region
                 Ok((a_cell, b_cell, c_cell))
@@ -140,37 +139,42 @@ impl<F: FieldExt> FiboChip<F> {
                 // * 所有copy constraint的作用在这里就格外明显
                 // * 我们只需要定义first row的cells，就可以复制粘贴给所有的rows
                 // * insert copy constraint
-            };
+            }
         )
     }
 
-    fn assign_row(&self, mut layouter: impl Layouter<F>, prev_b: &ACell<F>, prev_c: &ACell<F>)
-        // 只需要return最后一个cell（c）
-        -> Result<ACell<F>, Error> {
+    pub fn assign_row(
+        &self,
+        mut layouter: impl Layouter<F>,
+        prev_b: &ACell<F>,
+        prev_c: &ACell<F>
+    // 只需要return最后一个cell（c）
+    )-> Result<ACell<F>, Error> {
             layouter.assign_region(
                 || "next row",
-                |mut region: Region<F>| {
-                    self.config.selector.enable(&mut region, offset: 0);
+                |mut region| {
+                    self.config.selector.enable(&mut region, 0);
 
                     // 所以要copy之前的b和c，给后面的b和c（为什么少了a呢？）
                     // 搞懂了，因为permutation的时候有一个置换，第一行的b变成了下一行的a
-                    prev_b.0.copy_advice(annotation: || "a", &mut region, column: self.config.advice[0], offset: 0)?;
-                    prev_c.0.copy_advice(annotation: || "b", &mut region, column: self.config.advice[1], offset: 0)?;
+                    prev_b.0.copy_advice(|| "a", &mut region, self.config.advice[0], 0)?;
+                    prev_c.0.copy_advice(|| "b", &mut region, self.config.advice[1], 0)?;
                 
                     let c_val = prev_b.0.value().and_then(
                         |b| {
                             prev_c.0.value().map(|c| *b + *c)
                         }
-                    )
+                    );
 
-                    let c_cell: ACell<F> = region.assign_advice(
-                        annotation: || "c",
-                        column: self.config.advice[2],
-                        offset: 0,
-                        to: || c.ok_or(err: Error::Synthesis),)
-                    }.map(op: ACell)?;
+                    let c_cell = region.assign_advice(
+                        || "c",
+                        self.config.advice[2],
+                        0,
+                        || c_val,
+                    ).map(ACell)?;
 
-                    Ok(c_cell);
+                    Ok(c_cell)
+                }
             )
     } 
 }
