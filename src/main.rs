@@ -187,6 +187,8 @@ impl<F: FieldExt> FiboChip<F> {
     ) -> Result<(), Error> {
         // * 拿到一个assigned cell，如何把数据给instance column貌似
         // * 可以check一下这个`expose_public`函数的作用
+
+        // * 另外 instance有一个error也需要fix一下
         layouter.constrain_instance(cell.0.cell(), self.config.instance, row)
     }
 }
